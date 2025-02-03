@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
-
 class TimerDetails extends StatefulWidget {
   final int time;
   const TimerDetails({super.key, required this.time});
@@ -14,7 +12,7 @@ class TimerDetails extends StatefulWidget {
 }
 
 class _TimerDetailsState extends State<TimerDetails> {
-  late DateTime _startTime, _endTime;
+  DateTime? _startTime, _endTime; // Nullable variables to avoid late initialization error
   Timer? _timer;
   Duration _remainingTime = Duration.zero;
   bool _isTimerRunning = false;
@@ -30,10 +28,7 @@ class _TimerDetailsState extends State<TimerDetails> {
 
   Future<void> _initializeNotifications() async {
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    final initializationSettings = InitializationSettings(
-      android: androidSettings,
-      // iOS platform initialization is automatically handled now.
-    );
+    final initializationSettings = InitializationSettings(android: androidSettings);
 
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
   }
@@ -45,39 +40,35 @@ class _TimerDetailsState extends State<TimerDetails> {
     bool? running = prefs.getBool("timer_running");
 
     if (start != null && end != null && running == true) {
-      // If the timer state is found, continue from saved state
       _startTime = DateTime.parse(start);
       _endTime = DateTime.parse(end);
       _updateRemainingTime();
       _startCountdown();
     } else {
-      // Initialize _startTime and _endTime if no previous state exists
-      _startTime = DateTime.now(); // Initialize to current time
-      _endTime = _startTime.add(Duration(seconds: widget.time)); // Set end time based on widget's time
+      _startTime = DateTime.now();
+      _endTime = _startTime!.add(Duration(seconds: widget.time));
       _updateRemainingTime();
     }
   }
 
-
-
   Future<void> _saveTimerState() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString("start_time", _startTime.toIso8601String());
-    await prefs.setString("end_time", _endTime.toIso8601String());
-    await prefs.setBool("timer_running", _isTimerRunning);
+    if (_startTime != null && _endTime != null) {
+      await prefs.setString("start_time", _startTime!.toIso8601String());
+      await prefs.setString("end_time", _endTime!.toIso8601String());
+      await prefs.setBool("timer_running", _isTimerRunning);
+    }
   }
 
   void _startTimer() {
-    if (_isTimerRunning && !_isPaused) return; // Prevent duplicate start
+    if (_isTimerRunning && !_isPaused) return;
 
     setState(() {
       if (_isPaused) {
-        // Resume the timer with the remaining time
         _endTime = DateTime.now().add(_remainingTime);
       } else {
-        // Start new timer
         _startTime = DateTime.now();
-        _endTime = _startTime.add(Duration(seconds: widget.time));
+        _endTime = _startTime!.add(Duration(seconds: widget.time));
       }
       _isTimerRunning = true;
       _isPaused = false;
@@ -86,8 +77,9 @@ class _TimerDetailsState extends State<TimerDetails> {
     _saveTimerState();
     _startCountdown();
   }
+
   void _pauseTimer() {
-    if (!_isTimerRunning) return; // Only pause if running
+    if (!_isTimerRunning) return;
 
     setState(() {
       _isPaused = true;
@@ -95,9 +87,8 @@ class _TimerDetailsState extends State<TimerDetails> {
     });
 
     _timer?.cancel();
-    _saveTimerState(); // Save state
+    _saveTimerState();
   }
-
 
   void _startCountdown() {
     _timer?.cancel();
@@ -112,9 +103,12 @@ class _TimerDetailsState extends State<TimerDetails> {
 
   void _updateRemainingTime() {
     DateTime now = DateTime.now();
-    _remainingTime = _endTime.isAfter(now) ? _endTime.difference(now) : Duration.zero;
+    if (_endTime != null && _endTime!.isAfter(now)) {
+      _remainingTime = _endTime!.difference(now);
+    } else {
+      _remainingTime = Duration.zero;
+    }
   }
-
 
   Future<void> _showNotification(String title, String body) async {
     const androidDetails = AndroidNotificationDetails(
@@ -191,7 +185,6 @@ class _TimerDetailsState extends State<TimerDetails> {
                 style: TextStyle(color: Colors.white),
               ),
             ),
-
           ],
         ),
       ),
@@ -203,7 +196,9 @@ class _TimerDetailsState extends State<TimerDetails> {
       width: 150,
       height: 50,
       decoration: BoxDecoration(
-        color: label == "Starting" ? Colors.green : (label == "Ending" ? Colors.red : Colors.white),
+        color: label == "Starting"
+            ? Colors.green
+            : (label == "Ending" ? Colors.red : Colors.white),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
